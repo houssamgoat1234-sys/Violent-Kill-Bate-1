@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>VIOLENT KILL BATE 1</title>
+<style>
+html,body{margin:0;overflow:hidden;touch-action:none;background:#222}
+canvas{display:block}
+#joy{position:fixed;left:20px;bottom:20px;width:130px;height:130px;border-radius:50%;background:#ffffff44}
+#stick{position:absolute;left:40px;top:40px;width:50px;height:50px;border-radius:50%;background:white}
+button{position:fixed;right:25px;border:0;border-radius:50%;width:75px;height:75px;font-size:25px;z-index:5}
+#atk{bottom:110px;background:#a33;color:white}
+#talk{bottom:20px;background:#555;color:white}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+<div id="joy"><div id="stick"></div></div>
+<button id="atk">⚔</button>
+<button id="talk">💬</button>
+
+<script>
+"use strict";
+
+var c=document.getElementById("game");
+var x=c.getContext("2d");
+var joy=document.getElementById("joy");
+var stick=document.getElementById("stick");
+
+function size(){
+ c.width=innerWidth;
+ c.height=innerHeight;
+}
+size();
+window.onresize=size;
+
+var WW=2400,HH=2000;
+
+var p={
+ x:1200,y:900,hp:100,coins:100,
+ horse:false,damage:30,food:""
+};
+
+var quest=0,q1=0,q4=0;
+var message="FIND THE VILLAGER";
+var dead=false,saved=0,free=false;
+var foodMenu=false;
+
+var villager={x:300,y:1450};
+var stable={x:700,y:1450};
+var merchant={x:1800,y:700};
+var butcher={x:1500,y:1450};
+var cart={x:2050,y:1050,found:false};
+var gate={x:2280,y:900};
+
+var commander={
+ x:2100,y:900,hp:180,max:180,alive:true
+};
+
+var enemies=[],blood=[];
+
+function spawn(){
+ enemies.push({
+  x:100+Math.random()*2200,
+  y:100+Math.random()*1700,
+  hp:40
+ });
+}
+for(var i=0;i<12;i++)spawn();
+
+var jx=0,jy=0,keys={};
+
+onkeydown=function(e){
+ keys[e.key.toLowerCase()]=true;
+ if(e.key===" ")attack();
+ if(e.key.toLowerCase()==="e")interact();
+};
+
+onkeyup=function(e){
+ keys[e.key.toLowerCase()]=false;
+};
+
+function human(q,col,hero){
+ var X=q.x,Y=q.y;
+
+ x.fillStyle="#0005";
+ x.beginPath();
+ x.ellipse(X,Y+28,22,7,0,0,Math.PI*2);
+ x.fill();
+
+ x.fillStyle=col;
+ x.fillRect(X-13,Y-17,26,29);
+
+ x.strokeStyle=col;
+ x.lineWidth=8;
+ x.beginPath();
+ x.moveTo(X-8,Y-8);
+ x.lineTo(X-24,Y+5);
+ x.moveTo(X+8,Y-8);
+ x.lineTo(X+24,Y+5);
+ x.stroke();
+
+ x.strokeStyle="#222";
+ x.lineWidth=7;
+ x.beginPath();
+ x.moveTo(X-6,Y+10);
+ x.lineTo(X-11,Y+31);
+ x.moveTo(X+6,Y+10);
+ x.lineTo(X+11,Y+31);
+ x.stroke();
+
+ x.fillStyle="#d18e69";
+ x.beginPath();
+ x.arc(X,Y-31,12,0,Math.PI*2);
+ x.fill();
+
+ x.fillStyle="#352218";
+ x.beginPath();
+ x.arc(X,Y-35,12,Math.PI,Math.PI*2);
+ x.fill();
+
+ if(hero){
+  x.fillStyle="#777";
+  x.beginPath();
+  x.arc(X,Y-34,15,Math.PI,Math.PI*2);
+  x.fill();
+
+  x.strokeStyle="#eee";
+  x.lineWidth=4;
+  x.beginPath();
+  x.moveTo(X+18,Y);
+  x.lineTo(X+43,Y-27);
+  x.stroke();
+ }
+}
+
+function horse(X,Y){
+ x.fillStyle="#704522";
+ x.beginPath();
+ x.ellipse(X,Y,43,21,0,0,Math.PI*2);
+ x.fill();
+
+ x.beginPath();
+ x.ellipse(X+35,Y-16,16,19,0,0,Math.PI*2);
+ x.fill();
+
+ x.strokeStyle="#382216";
+ x.lineWidth=6;
+ x.beginPath();
+ x.moveTo(X-25,Y+12);
+ x.lineTo(X-29,Y+38);
+ x.moveTo(X+15,Y+12);
+ x.lineTo(X+19,Y+38);
+ x.stroke();
+}
+
+function building(X,Y,name){
+ x.fillStyle="#956444";
+ x.fillRect(X,Y,150,110);
+
+ x.fillStyle="#613333";
+ x.beginPath();
+ x.moveTo(X-8,Y);
+ x.lineTo(X+75,Y-45);
+ x.lineTo(X+158,Y);
+ x.fill();
+
+ x.fillStyle="#222";
+ x.fillRect(X+62,Y+60,28,50);
+
+ x.fillStyle="#e0bd69";
+ x.fillRect(X+20,Y+35,28,25);
+ x.fillRect(X+105,Y+35,28,25);
+
+ x.fillStyle="#fff";
+ x.font="14px Arial";
+ x.fillText(name,X+8,Y+20);
+}
+
+/* ATTACK */
+function attack(){
+ if(dead)return;
+
+ for(var i=enemies.length-1;i>=0;i--){
+  var e=enemies[i];
+
+  if(Math.hypot(e.x-p.x,e.y-p.y)<150){
+
+   blood.push({
+    x:e.x,y:e.y,life:420
+   });
+
+   enemies.splice(i,1);
+
+   if(quest===1)q1++;
+   if(quest===4)q4++;
+
+   if(quest===1&&q1>=3)
+    message="RETURN TO THE VILLAGER";
+
+   if(quest===4&&q4>=8)
+    message="REACH THE CITY GATE";
+  }
+ }
+
+ if(quest===5&&commander.alive){
+
+  if(Math.hypot(
+   commander.x-p.x,
+   commander.y-p.y
+  )<160){
+
+   commander.hp-=30;
+
+   blood.push({
+    x:commander.x,
+    y:commander.y,
+    life:420
+   });
+
+   if(commander.hp<=0){
+    commander.hp=0;
+    commander.alive=false;
+    quest=6;
+    saved=180;
+    message="CITY SAVED!";
+   }
+  }
+ }
+}
+
+/* TALK */
+function interact(){
+
+ if(dead)return;
+
+ if(Math.hypot(
+  p.x-villager.x,
+  p.y-villager.y
+ )<100){
+
+  if(quest===0){
+   quest=1;
+   message="QUEST 1: DEFEAT 3 BANDITS";
+  }
+
+  else if(quest===1&&q1>=3){
+   quest=2;
+   message="QUEST 2: GET THE HORSE";
+  }
+
+  else if(quest===2&&p.horse){
+   quest=3;
+   message="QUEST 3: FIND THE LOST CART";
+  }
+
+  else if(quest===3&&cart.found){
+   quest=4;
+   q4=0;
+   message="QUEST 4: DEFEND THE CITY";
+  }
+ }
+
+ if(
+  quest===2&&
+  Math.hypot(p.x-stable.x,p.y-stable.y)<110
+ ){
+
+  if(p.coins>=50){
+   p.coins-=50;
+   p.horse=true;
+   message="HORSE BOUGHT!";
+  }else{
+   message="YOU NEED 50 COINS";
+  }
+ }
+
+ if(
+  quest===3&&
+  Math.hypot(p.x-cart.x,p.y-cart.y)<110
+ ){
+  cart.found=true;
+  message="CART FOUND! RETURN TO MERCHANT";
+ }
+
+ if(
+  quest===3&&cart.found&&
+  Math.hypot(p.x-merchant.x,p.y-merchant.y)<110
+ ){
+  quest=4;
+  q4=0;
+  message="QUEST 4: KILL 8 ENEMIES";
+ }
+
+ /* OPEN BUTCHER */
+ if(
+  Math.hypot(p.x-butcher.x,p.y-butcher.y)<140
+ ){
+  foodMenu=true;
+ }
+}
+
+/* BUY */
+function buyFood(food,price){
+ if(p.coins<price){
+  message="NOT ENOUGH COINS";
+  return;
+ }
+
+ p.coins-=price;
+ p.food=food;
+ foodMenu=false;
+ message=food+" BOUGHT! TAP FOOD TO EAT";
+}
+
+/* EAT */
+function eatFood(){
+ if(!p.food)return;
+
+ var heal=20;
+
+ if(p.food==="CHICKEN")heal=35;
+ if(p.food==="SHEEP")heal=25;
+ if(p.food==="COW")heal=20;
+ if(p.food==="FISH")heal=30;
+
+ p.hp=Math.min(100,p.hp+heal);
+
+ message="YOU ATE "+p.food+"! +"+heal+" HP";
+ p.food="";
+}
+
+/* JOYSTICK */
+function moveJoy(e){
+ var r=joy.getBoundingClientRect();
+ var dx=e.clientX-(r.left+65);
+ var dy=e.clientY-(r.top+65);
+ var d=Math.hypot(dx,dy);
+
+ if(d>45){
+  dx=dx/d*45;
+  dy=dy/d*45;
+ }
+
+ jx=dx/45;
+ jy=dy/45;
+
+ stick.style.left=(40+dx)+"px";
+ stick.style.top=(40+dy)+"px";
+}
+
+joy.onpointerdown=function(e){
+ joy.setPointerCapture(e.pointerId);
+ moveJoy(e);
+};
+
+joy.onpointermove=function(e){
+ if(e.buttons)moveJoy(e);
+};
+
+joy.onpointerup=function(){
+ jx=0;jy=0;
+ stick.style.left="40px";
+ stick.style.top="40px";
+};
+
+document.getElementById("atk").onpointerdown=attack;
+document.getElementById("talk").onpointerdown=interact;
+
+/* MENU CLICK */
+c.onpointerdown=function(e){
+
+ if(!foodMenu)return;
+
+ var cy=c.height/2;
+
+ /* CLOSE */
+ if(
+  e.clientX>c.width/2+90 &&
+  e.clientY>cy-155 &&
+  e.clientY<cy-105
+ ){
+  foodMenu=false;
+  return;
+ }
+
+ if(e.clientY>cy-90&&e.clientY<cy-35)
+  buyFood("CHICKEN",30);
+
+ else if(e.clientY>cy-35&&e.clientY<cy+20)
+  buyFood("SHEEP",20);
+
+ else if(e.clientY>cy+20&&e.clientY<cy+75)
+  buyFood("COW",10);
+
+ else if(e.clientY>cy+75&&e.clientY<cy+130)
+  buyFood("FISH",40);
+};
+
+/* UPDATE */
+function update(){
+
+ if(dead)return;
+
+ if(saved>0){
+  saved--;
+
+  if(saved===0){
+   quest=99;
+   free=true;
+   message="THE CITY IS FREE — EXPLORE!";
+  }
+  return;
+ }
+
+ var dx=jx,dy=jy;
+
+ if(keys["a"]||keys["arrowleft"])dx=-1;
+ if(keys["d"]||keys["arrowright"])dx=1;
+ if(keys["w"]||keys["arrowup"])dy=-1;
+ if(keys["s"]||keys["arrowdown"])dy=1;
+
+ var d=Math.hypot(dx,dy);
+
+ if(d>1){
+  dx/=d;
+  dy/=d;
+ }
+
+ var speed=p.horse?6:3.5;
+
+ p.x+=dx*speed;
+ p.y+=dy*speed;
+
+ p.x=Math.max(40,Math.min(WW-40,p.x));
+ p.y=Math.max(40,Math.min(HH-40,p.y));
+
+ for(var i=enemies.length-1;i>=0;i--){
+
+  var e=enemies[i];
+
+  var dx=p.x-e.x;
+  var dy=p.y-e.y;
+  var d=Math.hypot(dx,dy);
+
+  if(d<280&&d>35){
+   e.x+=dx/d*.45;
+   e.y+=dy/d*.45;
+  }
+
+  if(d<35&&Math.random()<.02)
+   p.hp-=5;
+ }
+
+ if(quest===4&&enemies.length<8)
+  spawn();
+
+ if(
+  quest===4&&
+  q4>=8&&
+  Math.hypot(p.x-gate.x,p.y-gate.y)<130
+ ){
+  quest=5;
+  commander.alive=true;
+  commander.hp=180;
+  message="QUEST 5: DEFEAT THE COMMANDER";
+ }
+
+ for(var b=blood.length-1;b>=0;b--){
+  blood[b].life--;
+  if(blood[b].life<=0)
+   blood.splice(b,1);
+ }
+
+ if(p.hp<=0){
+  p.hp=0;
+  dead=true;
+
+  setTimeout(function(){
+   location.reload();
+  },5000);
+ }
+}
+
+/* CITY */
+function city(){
+
+ x.fillStyle="#69a957";
+ x.fillRect(0,0,WW,HH);
+
+ x.fillStyle="#b99b70";
+ x.fillRect(0,800,WW,120);
+ x.fillRect(1140,0,120,HH);
+
+ building(60,80,"HOUSE");
+ building(700,80,"SHOP");
+ building(60,1450,"VILLAGER");
+ building(700,1450,"STABLE");
+ building(1700,80,"HOUSE");
+ building(1700,1450,"ARMORY");
+ building(450,1050,"HOUSE");
+ building(1450,1050,"HOUSE");
+
+ /* BUTCHER */
+ x.fillStyle="#813d32";
+ x.fillRect(1380,1400,260,170);
+
+ x.fillStyle="#60302d";
+ x.beginPath();
+ x.moveTo(1360,1400);
+ x.lineTo(1510,1335);
+ x.lineTo(1660,1400);
+ x.fill();
+
+ x.fillStyle="#fff";
+ x.font="20px Arial";
+ x.fillText("BUTCHER",1440,1430);
+
+ x.font="14px Arial";
+ x.fillText("OUR MENU:",1410,1460);
+ x.fillText("CHICKEN $30",1410,1480);
+ x.fillText("SHEEP MEAT $20",1410,1500);
+ x.fillText("COW MEAT $10",1410,1520);
+ x.fillText("FISH $40",1410,1540);
+
+ /* GATE */
+ x.fillStyle="#555";
+ x.fillRect(2250,800,100,200);
+
+ x.fillStyle="#fff";
+ x.font="18px Arial";
+ x.fillText("GATE",2280,780);
+
+ /* CART */
+ if(!cart.found){
+  x.fillStyle="#704522";
+  x.fillRect(cart.x-45,cart.y-25,90,50);
+
+  x.fillStyle="#222";
+  x.beginPath();
+  x.arc(cart.x-30,cart.y+28,12,0,Math.PI*2);
+  x.fill();
+
+  x.beginPath();
+  x.arc(cart.x+30,cart.y+28,12,0,Math.PI*2);
+  x.fill();
+ }
+
+ /* BLOOD */
+ for(var b=0;b<blood.length;b++){
+  x.fillStyle="rgba(150,0,0,.7)";
+  x.beginPath();
+  x.ellipse(
+   blood[b].x,
+   blood[b].y+20,
+   27,12,0,0,Math.PI*2
+  );
+  x.fill();
+ }
+
+ /* NPCS */
+ human(villager,"#28733b",false);
+ human(merchant,"#704b78",false);
+ human(butcher,"#713e38",false);
+
+ x.fillStyle="#fff";
+ x.font="16px Arial";
+ x.fillText("QUEST",villager.x-28,villager.y-55);
+ x.fillText("MERCHANT",merchant.x-45,merchant.y-55);
+ x.fillText("BUTCHER",butcher.x-35,butcher.y-55);
+
+ if(!p.horse)
+  horse(stable.x,stable.y+30);
+
+ for(var i=0;i<enemies.length;i++)
+  human(enemies[i],"#713b3b",false);
+
+ /* COMMANDER */
+ if(quest===5&&commander.alive){
+
+  human(commander,"#3d304d",false);
+
+  x.fillStyle="#222";
+  x.fillRect(
+   commander.x-80,
+   commander.y-70,
+   160,10
+  );
+
+  x.fillStyle="#d22";
+  x.fillRect(
+   commander.x-80,
+   commander.y-70,
+   160*(commander.hp/commander.max),
+   10
+  );
+
+  x.fillStyle="#fff";
+  x.font="18px Arial";
+  x.fillText(
+   "COMMANDER",
+   commander.x-55,
+   commander.y-85
+  );
+ }
+
+ if(p.horse)
+  horse(p.x,p.y+38);
+
+ human(p,"#1764a5",true);
+}
+
+/* MENU */
+function drawMenu(){
+
+ if(!foodMenu)return;
+
+ var cx=c.width/2;
+ var cy=c.height/2;
+
+ x.fillStyle="rgba(0,0,0,.93)";
+ x.fillRect(cx-175,cy-165,350,330);
+
+ /* CLOSE BUTTON */
+ x.fillStyle="#a33";
+ x.fillRect(cx+105,cy-155,50,42);
+
+ x.fillStyle="#fff";
+ x.font="bold 25px Arial";
+ x.textAlign="center";
+ x.fillText("X",cx+130,cy-125);
+
+ x.font="bold 24px Arial";
+ x.fillText("BUTCHER MENU",cx,cy-110);
+
+ x.font="18px Arial";
+
+ x.fillText("CHICKEN $30",cx,cy-60);
+ x.fillText("SHEEP MEAT $20",cx,cy-5);
+ x.fillText("COW MEAT $10",cx,cy+50);
+ x.fillText("FISH $40",cx,cy+105);
+
+ x.font="14px Arial";
+ x.fillStyle="#ffd66e";
+ x.fillText("TAP FOOD TO BUY",cx,cy+140);
+
+ x.textAlign="left";
+}
+
+/* DRAW */
+function draw(){
+
+ x.clearRect(0,0,c.width,c.height);
+
+ var camX=p.x-c.width/2;
+ var camY=p.y-c.height/2;
+
+ x.save();
+ x.translate(-camX,-camY);
+ city();
+ x.restore();
+
+ hud();
+ drawMenu();
+
+ if(saved>0){
+  x.fillStyle="rgba(0,0,0,.5)";
+  x.fillRect(0,0,c.width,c.height);
+
+  x.fillStyle="#fff";
+  x.textAlign="center";
+  x.font="bold 45px Arial";
+  x.fillText("CITY SAVED!",c.width/2,c.height/2);
+  x.textAlign="left";
+ }
+
+ if(dead){
+  x.fillStyle="rgba(0,0,0,.85)";
+  x.fillRect(0,0,c.width,c.height);
+
+  x.fillStyle="#fff";
+  x.textAlign="center";
+  x.font="bold 45px Arial";
+  x.fillText("YOU DIED",c.width/2,c.height/2);
+
+  x.font="20px Arial";
+  x.fillText("RESTARTING...",c.width/2,c.height/2+45);
+
+  x.textAlign="left";
+ }
+}
+
+function hud(){
+
+ x.fillStyle="#111c";
+ x.fillRect(10,10,430,125);
+
+ x.fillStyle="#fff";
+ x.font="bold 21px Arial";
+ x.fillText("VIOLENT KILL BATE 1",20,35);
+
+ x.font="16px Arial";
+ x.fillText(
+  "HP: "+p.hp+"   COINS: "+p.coins,
+  20,62
+ );
+
+ x.fillText(
+  "Q1: "+q1+"/3   Q4: "+q4+"/8",
+  20,87
+ );
+
+ x.fillStyle="#ffd66e";
+ x.fillText(message,20,112);
+
+ if(p.food){
+  x.fillStyle="#fff";
+  x.fillText(
+   "FOOD: "+p.food+" — TAP BOTTOM-LEFT TO EAT",
+   20,c.height-25
+  );
+ }
+}
+
+/* EAT BY TAP */
+c.addEventListener("pointerdown",function(e){
+
+ if(foodMenu)return;
+
+ if(
+  p.food &&
+  e.clientX<350 &&
+  e.clientY>c.height-100
+ ){
+  eatFood();
+ }
+});
+
+function loop(){
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+
+loop();
+
+</script>
+</body>
+</html>
